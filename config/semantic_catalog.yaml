@@ -1,0 +1,760 @@
+version: 1
+
+entities:
+  tabOpportunity:
+    label: Opportunity
+    description: >
+      Customer enquiry header. Each row is a single opportunity/enquiry.
+    pk: name
+    columns:
+      name: {desc: Unique Opportunity ID (e.g., AMS-ENQ-2022-00001), role: id}
+      customer_name: {desc: Customer organization}
+      status:
+        desc: Business status of the opportunity
+        role: enum
+        values: ["Open","Quotation","Won","Lost","Closed","Pending","Draft","Submitted","Cancelled"]
+        synonyms:
+          active: ["Open","Quotation"]
+          quote: "Quotation"
+          quoted: "Quotation"
+          canceled: "Cancelled"
+          cancelled: "Cancelled"
+      customer_reference_no: {desc: Customer RFQ / Enquiry reference}
+      vessel: {desc: Vessel name (if applicable)}
+      sales_person: {desc: Internal sales owner}
+      customer_department: {desc: Customer dept}
+      port_of_delivery: {desc: Delivery port}
+      priority:
+        desc: Business priority
+        role: enum
+        values: ["High","Medium","Low"]
+      transaction_date: {desc: Date the opportunity was created/recorded, role: date}
+      purchaser: {desc: Internal purchaser name}
+      assigned_to_purchaser_on: {desc: When purchaser was assigned, role: datetime}
+      contact_person: {desc: Contact person at customer}
+      contact_email: {desc: Email of contact}
+      contact_mobile: {desc: Phone of contact}
+      warehouse: {desc: Default warehouse}
+      currency: {desc: Currency code (e.g., AED, USD), role: enum}
+      etd: {desc: Estimated time of departure, role: date}
+    typical_queries:
+      - "count opportunities by status"
+      - "opportunities on a given date"
+      - "details for a given opportunity id"
+      - "supplier response rate for an opportunity"
+
+  "tabOpportunity Item":
+    label: Opportunity Item
+    description: >
+      Line items in an opportunity, one row per requested item.
+    pk: name
+    fk:
+      parent:
+        references: tabOpportunity.name
+        desc: Parent opportunity id
+    columns:
+      name: {desc: Row id, role: id}
+      parent: {desc: Parent Opportunity ID, role: id}
+      item_code: {desc: Internal item code}
+      item_name: {desc: Item name/description (short)}
+      stock_availability_status:
+        desc: Stock availability flag
+        role: enum
+        values: ["Available","Partial","Not Available"]
+      stock_qty: {desc: Qty in stock, role: number}
+      base_price: {desc: Base unit rate, role: money}
+      supplier_list: {desc: Potential/known suppliers at the opportunity-item level (free text). Not the RFQ invited supplier list.}
+      description: {desc: Detailed Item description}
+      qty: {desc: Requested quantity, role: number}
+      uom: {desc: Unit of measure}
+    typical_queries:
+      - "show items for an opportunity"
+      - "which items have stock available"
+      - "which items have RFQs or quotations"
+
+  "tabRequest for Quotation":
+    label: Request for Quotation (RFQ)
+    description: >
+      RFQ header created from an opportunity. One RFQ can include multiple items and multiple invited suppliers.
+    pk: name
+    fk:
+      opportunity:
+        references: tabOpportunity.name
+        desc: Source opportunity id
+    columns:
+      name: {desc: RFQ ID, role: id}
+      opportunity: {desc: Linked Opportunity ID, role: id}
+      transaction_date: {desc: RFQ creation date, role: date}
+    typical_queries:
+      - "rfqs for an opportunity"
+      - "rfqs created between dates"
+      - "how many suppliers invited per rfq"
+
+  "tabRequest for Quotation Item":
+    label: RFQ Item
+    description: >
+      Items included in an RFQ. Child rows under an RFQ header.
+    pk: composite
+    fk:
+      parent:
+        references: "tabRequest for Quotation.name"
+        desc: Parent RFQ id
+    columns:
+      parent: {desc: RFQ ID, role: id}
+      item_code: {desc: Item code included in the RFQ}
+      qty: {desc: Quantity requested in the RFQ, role: number}
+    typical_queries:
+      - "items included in an rfq"
+      - "how many rfqs were created for an item within an opportunity"
+
+  "tabRequest for Quotation Supplier":
+    label: RFQ Supplier (Invited)
+    description: >
+      Suppliers invited on an RFQ with contact details and email status. Fields: supplier, contact, email_id, send_email, email_sent. No supplier_list column on this table.
+    pk: composite
+    fk:
+      parent:
+        references: "tabRequest for Quotation.name"
+        desc: Parent RFQ id
+    columns:
+      parent: {desc: RFQ ID, role: id}
+      supplier: {desc: Supplier name/id}
+      contact: {desc: Contact person at supplier}
+      email_id: {desc: Supplier email}
+      send_email: {desc: Marked to send email, role: boolean}
+      email_sent: {desc: Email sent flag, role: boolean}
+    typical_queries:
+      - "invited suppliers for an rfq"
+      - "unquoted suppliers for an opportunity/item"
+      - "email status of invited suppliers"
+      - "For an RFQ, list item codes and invited supplier details (supplier, contact, email_id)"
+
+  "tabSupplier Quotation":
+    label: Supplier Quotation
+    description: >
+      Supplier response header quoting against an opportunity.
+      Note: This links to the RFQ directly.
+      To find unquoted suppliers, supplier quatation not created against the RFQ
+      from tabRequest for Quotation Supplier with actual responders here.
+    pk: name
+    fk:
+      opportunity:
+        references: tabOpportunity.name
+        desc: Linked Opportunity ID
+      supplier:
+        references: Supplier.name
+        desc: Supplier (if Supplier master exists)
+    columns:
+      name: {desc: Supplier quotation id, role: id}
+      opportunity: {desc: Linked Opportunity ID, role: id}
+      supplier: {desc: Supplier name (responder)}
+      transaction_date: {desc: Supplier response date, role: date}
+      currency: {desc: Quoted currency code, role: enum}
+    typical_queries:
+      - "which suppliers have quoted for an opportunity"
+      - "quotation dates per supplier"
+      - "suppliers who responded vs invited"
+
+  "tabSupplier Quotation Item":
+    label: Supplier Quotation Item
+    description: >
+      Item‑wise quoted details (rate, notes) from a supplier quotation.
+    pk: name
+    fk:
+      parent:
+        references: "tabSupplier Quotation.name"
+        desc: Supplier quotation header id
+    columns:
+      parent: {desc: Supplier quotation id, role: id}
+      item_code: {desc: Quoted item code}
+      rate: {desc: Quoted unit rate, role: money}
+      supplier_description: {desc: Supplier notes/description for the item}
+    typical_queries:
+      - "quoted rate per item and supplier"
+      - "lowest quote per item"
+      - "quotes in a currency"
+
+  "tabQuotation":
+    label: Customer Quotation
+    description: >
+      Customer quotation header linked to an opportunity.
+    pk: name
+    fk:
+      opportunity:
+        references: tabOpportunity.name
+        desc: Linked Opportunity ID
+      customer:
+        references: Customer.name
+        desc: Customer (if Customer master exists)
+    columns:
+      name: {desc: Customer quotation id, role: id}
+      opportunity: {desc: Linked Opportunity ID, role: id}
+      customer_name: {desc: Customer name}
+      transaction_date: {desc: Quotation date, role: date}
+      valid_till: {desc: Quotation valid until date, role: date}
+      currency: {desc: Quotation currency code, role: enum}
+    typical_queries:
+      - "customer quotations for an opportunity"
+      - "quotations by customer"
+      - "quotations valid within date range"
+
+  "tabQuotation Item":
+    label: Customer Quotation Item
+    description: >
+      Item-wise details in a customer quotation.
+    pk: composite
+    fk:
+      parent:
+        references: "tabQuotation.name"
+        desc: Customer quotation header id
+    columns:
+      parent: {desc: Customer quotation id, role: id}
+      item_code: {desc: Item code quoted}
+      qty: {desc: Quantity quoted, role: number}
+      rate: {desc: Quoted rate, role: money}
+      description: {desc: Item description}
+      item_name: {desc: Item name}
+      unit_price: {desc: Cost price per unit, role: money}
+      margin: {desc: Percentage of (selling - cost) / selling, role: number}
+      supplier_description: {desc: Supplier remarks on item}
+    typical_queries:
+      - "items quoted in a customer quotation"
+      - "quotation rates per item"
+
+  Supplier:
+    label: Supplier
+    description: >
+      Supplier master used for invitations and quotations.
+    pk: name
+    columns:
+      name: {desc: Supplier ID/Name, role: id}
+      email_id: {desc: Primary email}
+      contact_mobile: {desc: Phone}
+      status:
+        desc: Supplier status
+        role: enum
+        values: ["Active","Inactive"]
+    typical_queries:
+      - "list active suppliers"
+      - "supplier contact details"
+
+  Customer:
+    label: Customer
+    description: >
+      Customer master for opportunities and customer quotations.
+    pk: name
+    columns:
+      name: {desc: Customer ID/Name, role: id}
+      email_id: {desc: Primary email}
+      contact_mobile: {desc: Phone}
+      #Added by shiby
+      priority:
+        desc: Customer Priority
+        role: enum
+        values: [1="Highest",2="High",3="Medium",4="Low",5="Lowest",0="Blacklisted"]
+            
+      status:
+        desc: Customer status
+        role: enum
+        values: ["Active","Inactive"]
+    typical_queries:
+      - "customer contact details"
+      - "active customers with recent quotations"
+
+  Item:
+    label: Item
+    description: >
+      Item master referenced by opportunity items, RFQ items, supplier quotation items, and customer quotation items.
+    pk: item_code
+    columns:
+      item_code: {desc: Item Code, role: id}
+      item_name: {desc: Item name}
+      uom: {desc: Default unit of measure}
+      description: {desc: Item description}
+    typical_queries:
+      - "item details"
+      - "items quoted within a date range"
+
+  "tabSales Order":
+    label: Job Order
+    # description: >
+    #   Confirmed order created from a quotation..
+   #Added by shiby
+    description: >
+      Confirmed order created from a quotation. Single Order can be created using multiple Quotations.(tabQuotation.name=tabSales Order Item.prevdoc_docname
+      tabQuotation Item.name=tabSales Order Item.quotation_item)
+    pk: name
+    # fk:
+    #   quotation:
+    #     references: "tabQuotation.name"
+    #     desc: Link to originating Quotation
+    columns:
+      name: {desc: Unique Sales Order ID, role: id}
+      # quotation: {desc: Link to Quotation (tabQuotation.name), role: id}
+      customer_name: {desc: Customer organization}
+      status:
+        desc: Sales order status
+        role: enum
+        values: ["Draft","Submitted","To Deliver","To Bill","Completed","Cancelled"]
+      transaction_date: {desc: Date sales order was created, role: date}
+      delivery_date: {desc: Scheduled delivery date, role: date}
+      total: {desc: Sales order total, role: money}
+      currency: {desc: Currency code, role: enum}
+    typical_queries:
+      - "sales orders from a quotation"
+      - "sales orders by status"
+      - "deliveries scheduled by date"
+
+  "tabSales Order Item":
+    label: Sales Order Item
+    description: >
+      Line items within a sales order.
+    pk: name
+    fk:
+      parent:
+        references: "tabSales Order.name"
+        desc: Sales Order id
+    #Added by shiby
+    ##############
+    fk:
+      prevdoc_docname:
+        references: "tabQuotation.name"
+        desc: Quotation id    
+    fk:
+      quotation_item:
+        references: "tabQuotation Item.name"
+        desc: Quotation Item id    
+      ##############
+    columns:
+      name: {desc: Unique row ID, role: id}
+      parent: {desc: Link to Sales Order (tabSales Order.name), role: id}
+      item_code: {desc: Item code}
+      item_name: {desc: Item name}
+      qty: {desc: Ordered quantity, role: number}
+      uom: {desc: Unit of measure}
+      rate: {desc: Sales rate, role: money}
+      amount: {desc: Line total, role: money}
+      description: {desc: Item description}
+      prevdoc_docname: {desc: Link to originating Quotation (tabQuotation.name), role: id}
+      quotation_item: {desc: Link to originating Quotation Item (tabQuotation Item.name), role: id}
+
+  "tabPurchase Order":
+    label: Purchase Order
+    description: >
+      Order placed to a supplier for items, usually linked to a Sales Order / Job Order.
+    pk: name
+    columns:
+      name: {desc: Unique Purchase Order ID, role: id}
+      supplier: {desc: Supplier name}
+      transaction_date: {desc: PO creation date, role: date}
+      schedule_date: {desc: Expected delivery date, role: date}
+      status:
+        desc: Status of PO
+        role: enum
+        values: ["Draft","Submitted","Completed","Closed","Cancelled"]
+      currency: {desc: Currency code, role: enum}
+      total: {desc: Total PO amount, role: money}
+    typical_queries:
+      - "purchase orders by status"
+      - "open purchase orders by supplier"
+
+  "tabPurchase Order Item":
+    label: Purchase Order Item
+    description: >
+      Line items in a Purchase Order.
+    pk: name
+    fk:
+      parent:
+        references: "tabPurchase Order.name"
+        desc: Purchase Order id
+    #Added by shiby
+    ##############
+      fk:
+      sales_order:
+        references: "tabSales Order.name"
+        desc: Purchase Order id
+      fk:
+      customer_enquiry:
+        references: "tabSales Order Item.name"
+        desc: Purchase Order id
+      fk:
+      customer_enquiry:
+        references: "tabOpportunity.name"
+        desc: Purchase Order id
+    ##############
+    columns:
+      name: {desc: Unique row ID, role: id}
+      parent: {desc: Link to Purchase Order (tabPurchase Order.name), role: id}
+      item_code: {desc: Item code}
+      item_name: {desc: Item name}
+      qty: {desc: Ordered quantity, role: number}
+      uom: {desc: Unit of measure}
+      rate: {desc: Purchase rate, role: money}
+      amount: {desc: Line total, role: money}
+      sales_order: {desc: Link to originating Sales Order (tabSales Order.name), role: id}
+      sales_order_item: {desc: Link to originating Sales Order Item (tabSales Order Item.name), role: id}
+      customer_enquiry: {desc: Link to originating Opportunity (tabOpportunity.name), role: id}
+
+  "tabPurchase Receipt":
+    label: Purchase Receipt
+    description: >
+      Acknowledgement of goods received from a supplier against a Purchase Order.
+    pk: name
+    columns:
+      name: {desc: Unique Purchase Receipt ID, role: id}
+      supplier: {desc: Supplier name}
+      posting_date: {desc: Goods receipt date, role: date}
+      status:
+        desc: Status of PR
+        role: enum
+        values: ["Draft","Partly Billed","To Bill","Completed","Return Issued","Cancelled","Closed"]
+    typical_queries:
+      - "purchase receipts by supplier"
+      - "purchase receipts by PO"
+
+  "tabPurchase Receipt Item":
+    label: Purchase Receipt Item
+    description: >
+      Line items in a Purchase Receipt, typically linked to a Purchase Order Item.
+    pk: name
+    fk:
+      parent:
+        references: "tabPurchase Receipt.name"
+        desc: Purchase Receipt id
+    columns:
+      name: {desc: Unique row ID, role: id}
+      parent: {desc: Link to Purchase Receipt (tabPurchase Receipt.name), role: id}
+      item_code: {desc: Item code}
+      item_name: {desc: Item name}
+      received_qty: {desc: Received quantity, role: number}
+      qty: {desc: Accepted quantity, role: number}
+      rejected_qty: {desc: Rejected quantity, role: number}
+      uom: {desc: Unit of measure}
+      rate: {desc: Purchase rate, role: money}
+      amount: {desc: Line total, role: money}
+      #Added by shiby
+    ##############
+      purchase_order: {desc: Link to originating Purchase Order (tabPurchase Order.name), role: id}
+      fk:
+        sales_order: {desc: Link to originating Sales Order (tabSales Order.name), role: id}
+      fk:
+        sales_order_item: {desc: Link to originating Sales Order Item (tabSales Order Item.name), role: id}
+      fk:
+        purchase_order_item: {desc: Link to originating Purchase Order Item (tabPurchase Order Item.name), role: id}
+   ##############
+  "tabDelivery Note":
+    label: Delivery Note
+    description: >
+      Document confirming items delivered against a sales order.
+    pk: name
+    columns:
+      name: {desc: Unique Delivery Note ID, role: id}
+      customer_name: {desc: Customer organization}
+      posting_date: {desc: Date delivered, role: date}
+      status:
+        desc: Delivery status
+        role: enum
+        values: ["Draft","Submitted","Returned","Completed","Cancelled"]
+    typical_queries:
+      - "delivery notes by sales order"
+      - "deliveries completed by date"
+
+  "tabDelivery Note Item":
+    label: Delivery Note Item
+    description: >
+      Line items delivered against a sales order.
+    pk: name
+    fk:
+      parent:
+        references: "tabDelivery Note.name"
+        desc: Delivery Note id
+    columns:
+      name: {desc: Unique row ID, role: id}
+      parent: {desc: Link to Delivery Note (tabDelivery Note.name), role: id}
+      item_code: {desc: Item code}
+      item_name: {desc: Item name}
+      qty: {desc: Delivered quantity, role: number}
+      uom: {desc: Unit of measure}
+      description: {desc: Item description}
+     ##############
+    fk:
+      against_sales_order: {desc: Link to originating Sales Order (tabSales Order.name), role: id}
+    fk:  
+      so_detail: {desc: Link to originating Sales Order Item (tabSales Order Item.name), role: id}
+     ##############
+  "tabSales Invoice":
+    label: Sales Invoice
+    description: >
+      Invoice raised against a delivery note or sales order.
+    pk: name
+    columns:
+      name: {desc: Unique Sales Invoice ID, role: id}
+      customer: {desc: Customer organization}
+      posting_date: {desc: Invoice date, role: date}
+      due_date: {desc: Payment due date, role: date}
+      total: {desc: Invoice total, role: money}
+      currency: {desc: Currency code, role: enum}
+      status:
+        desc: Invoice status
+        role: enum
+        values: ["Draft","Unpaid","Paid","Partly Paid","Overdue","Cancelled"]
+    typical_queries:
+      - "unpaid invoices by customer"
+      - "invoices by delivery note"
+
+  "tabSales Invoice Item":
+    label: Sales Invoice Item
+    description: >
+      Line items billed in an invoice.
+    pk: name
+    fk:
+      parent:
+        references: "tabSales Invoice.name"
+        desc: Sales Invoice id
+    columns:
+      name: {desc: Unique row ID, role: id}
+      parent: {desc: Link to Sales Invoice (tabSales Invoice.name), role: id}
+      item_code: {desc: Item code}
+      item_name: {desc: Item name}
+      qty: {desc: Billed quantity, role: number}
+      uom: {desc: Unit of measure}
+      rate: {desc: Invoice rate, role: money}
+      amount: {desc: Line total, role: money}
+      description: {desc: Item description}
+##############
+    fk:
+      so_detail: {desc: Link to originating Sales Order Item (tabSales Order Item.name), role: id}
+    fk:
+      dn_detail: {desc: Link to originating Delivery Note Item (tabDelivery Note Item.name), role: id}
+    fk:
+      delivery_note: {desc: Link to originating Delivery Note (tabDelivery Note.name), role: id}
+##############
+relationships:
+  - from: "tabOpportunity.name"
+    to:   "tabOpportunity Item.parent"
+    type: one_to_many
+    desc: Opportunity has many items
+
+  - from: "tabOpportunity.name"
+    to:   "tabRequest for Quotation.opportunity"
+    type: one_to_many
+    desc: Opportunity has many RFQs
+
+  - from: "tabRequest for Quotation.name"
+    to:   "tabRequest for Quotation Item.parent"
+    type: one_to_many
+    desc: RFQ has many items
+
+  - from: "tabRequest for Quotation.name"
+    to:   "tabRequest for Quotation Supplier.parent"
+    type: one_to_many
+    desc: RFQ has many invited suppliers
+
+  - from: "tabOpportunity.name"
+    to:   "tabSupplier Quotation.opportunity"
+    type: one_to_many
+    desc: Opportunity has many supplier quotations
+
+  - from: "tabSupplier Quotation.name"
+    to:   "tabSupplier Quotation Item.parent"
+    type: one_to_many
+    desc: Supplier quotation has many items
+
+  - from: "tabRequest for Quotation Supplier.supplier"
+    to:   "tabSupplier Quotation.supplier"
+    type: semantic_link
+    desc: Use to compare invited vs responded suppliers.
+
+  - from: "tabSupplier Quotation Item.item_code"
+    to: "tabRequest for Quotation Item.item_code"
+    type: semantic_link
+    desc: Supplier quotation items correspond to RFQ items (same item_code set across RFQ and quotation)
+
+  - from: "Supplier.name"
+    to:   "tabSupplier Quotation.supplier"
+    type: semantic_link
+    desc: Supplier master links to supplier quotations
+
+  - from: "Customer.name"
+    to:   "tabQuotation.customer_name"
+    type: semantic_link
+    desc: Customer master links to customer quotations (by name)
+
+  - from: "Item.item_code"
+    to:   "tabOpportunity Item.item_code"
+    type: semantic_link
+    desc: Item master to opportunity items
+
+  - from: "Item.item_code"
+    to:   "tabRequest for Quotation Item.item_code"
+    type: semantic_link
+    desc: Item master to RFQ items
+
+  - from: "Item.item_code"
+    to:   "tabSupplier Quotation Item.item_code"
+    type: semantic_link
+    desc: Item master to supplier quotation items
+
+  - from: "Item.item_code"
+    to:   "tabQuotation Item.item_code"
+    type: semantic_link
+    desc: Item master to customer quotation items
+
+  # Order-to-Cash flow
+  - from: "tabSales Order.name"
+    to:   "tabSales Order Item.parent"
+    type: one_to_many
+    desc: Sales Order has many items
+
+  - from: "tabQuotation Item.name"
+    to:   "tabSales Order Item.quotation_item"
+    type: one_to_many
+    desc: Quotation Items flow into Sales Order Items
+
+  - from: "tabQuotation.name"
+    to:   "tabSales Order Item.prevdoc_docname"
+    type: one_to_many
+    desc: A Quotation can be referenced in many Sales Order Items
+
+  - from: "tabDelivery Note.name"
+    to:   "tabDelivery Note Item.parent"
+    type: one_to_many
+    desc: Delivery Note has many items
+
+  - from: "tabSales Order Item.name"
+    to:   "tabDelivery Note Item.so_detail"
+    type: one_to_many
+    desc: Sales Order Items flow into Delivery Note Items
+
+  - from: "tabSales Order.name"
+    to:   "tabDelivery Note Item.against_sales_order"
+    type: one_to_many
+    desc: A Sales Order can be referenced in many Delivery Note Items
+
+  - from: "tabSales Invoice.name"
+    to:   "tabSales Invoice Item.parent"
+    type: one_to_many
+    desc: Sales Invoice has many items
+
+  - from: "tabSales Order Item.name"
+    to:   "tabSales Invoice Item.so_detail"
+    type: one_to_many
+    desc: Invoice line may link to a Sales Order Item
+
+  - from: "tabDelivery Note Item.name"
+    to:   "tabSales Invoice Item.dn_detail"
+    type: one_to_many
+    desc: Invoice line may link to a Delivery Note Item
+
+  - from: "tabDelivery Note.name"
+    to:   "tabSales Invoice Item.delivery_note"
+    type: one_to_many
+    desc: Invoice line may link to a Delivery Note
+
+  # Purchase flow
+  - from: "tabPurchase Order.name"
+    to:   "tabPurchase Order Item.parent"
+    type: one_to_many
+    desc: Purchase Order has many items
+
+  - from: "tabSales Order Item.name"
+    to:   "tabPurchase Order Item.so_detail"
+    type: one_to_many
+    desc: Purchase Order Item may be linked to a Sales Order Item
+
+  - from: "tabPurchase Receipt.name"
+    to:   "tabPurchase Receipt Item.parent"
+    type: one_to_many
+    desc: Purchase Receipt has many items
+
+  - from: "tabPurchase Order.name"
+    to:   "tabPurchase Receipt Item.purchase_order"
+    type: one_to_many
+    desc: A Purchase Order can be referenced in many Purchase Receipt Items
+
+  - from: "tabPurchase Order Item.name"
+    to:   "tabPurchase Receipt Item.purchase_order_item"
+    type: one_to_many
+    desc: Purchase Order Items flow into Purchase Receipt Items
+
+  - from: "tabSales Order.name"
+    to:   "tabPurchase Receipt Item.sales_order"
+    type: one_to_many
+    desc: A Sales Order may be referenced in Purchase Receipts (drop-ship/subcontracting)
+
+  - from: "tabSales Order Item.name"
+    to:   "tabPurchase Receipt Item.sales_order_item"
+    type: one_to_many
+    desc: Sales Order Items may flow into Purchase Receipt Items
+
+  - from: "Item.item_code"
+    to:   "tabSales Order Item.item_code"
+    type: semantic_link
+    desc: Item master to Sales Order items
+
+  - from: "Item.item_code"
+    to:   "tabPurchase Order Item.item_code"
+    type: semantic_link
+    desc: Item master to Purchase Order items
+
+  - from: "Item.item_code"
+    to:   "tabPurchase Receipt Item.item_code"
+    type: semantic_link
+    desc: Item master to Purchase Receipt items
+
+  - from: "Item.item_code"
+    to:   "tabDelivery Note Item.item_code"
+    type: semantic_link
+    desc: Item master to Delivery Note items
+
+  - from: "Item.item_code"
+    to:   "tabSales Invoice Item.item_code"
+    type: semantic_link
+    desc: Item master to Sales Invoice items
+
+  - from: "Customer.name"
+    to:   "tabSales Order.customer"
+    type: semantic_link
+    desc: Customer master to Sales Orders
+
+  - from: "Customer.name"
+    to:   "tabDelivery Note.customer"
+    type: semantic_link
+    desc: Customer master to Delivery Notes
+
+  - from: "Customer.name"
+    to:   "tabSales Invoice.customer"
+    type: semantic_link
+    desc: Customer master to Sales Invoices
+
+  - from: "Supplier.name"
+    to:   "tabPurchase Order.supplier"
+    type: semantic_link
+    desc: Supplier master to Purchase Orders
+
+  - from: "Supplier.name"
+    to:   "tabPurchase Receipt.supplier"
+    type: semantic_link
+    desc: Supplier master to Purchase Receipts
+
+global:
+  roles:
+    id_like: ["name","parent","opportunity","opportunity_id","quotation_id","rfq_id","item_code","supplier","customer","sales_order","sales_order_item","purchase_order","purchase_order_item","purchase_receipt","delivery_note","sales_invoice","prevdoc_docname","quotation_item","against_sales_order","so_detail","dn_detail"]
+    date_like: ["transaction_date","valid_till","posting_date","due_date","delivery_date","schedule_date","etd","opportunity_date","quotation_transaction_date","rfq_date"]
+    money_like: ["base_price","rate","total","amount","unit_price"]
+    boolean_like: ["send_email","email_sent"]
+  example_queries:
+    - "For an opportunity, list items with their RFQ numbers, invited suppliers, and which suppliers submitted quotations"
+    - "List suppliers invited to an RFQ and identify those who submitted quotations"
+    - "Show the lowest quoted rate per item for an opportunity"
+    - "How many RFQs were sent and how many supplier responses were received for an opportunity"
+    - "List items in an opportunity with their stock availability, RFQs, and supplier quotes"
+    - "For an opportunity, list items with RFQs, invited suppliers, quoted suppliers, and unquoted suppliers (invited but did not quote)"
+    - "Show suppliers who were invited on RFQ but did not submit a quotation"
+    - "Which suppliers quoted for an opportunity, and which invited suppliers did not respond"
+    - "Show RFQ invited suppliers joined with the Supplier master"
+    - "List quotations per customer with totals and valid_till"
+    - "For an opportunity, join items to Item master and show UOM"
+    - "Trace an order from quotation to delivery and invoice (Quotation → SO → DN → SI)"
+    - "Show purchase orders raised against a sales order and received quantities"
+    - "For a sales order, list items with their delivery note lines and invoice lines"

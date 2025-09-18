@@ -1,0 +1,7 @@
+fastapi==0.112.2
+uvicorn==0.30.6
+PyMySQL==1.1.1
+python-dotenv==1.0.1
+openai==1.40.6    
+PyYAML==6.0.2
+matplotlib

@@ -1,0 +1,32 @@
+tabOpportunity:
+  - name
+  - customer_name
+  - status
+  - customer_reference_no
+  - vessel
+  - sales_person
+  - customer_department
+  - port_of_delivery
+  - priority
+  - transaction_date
+  - purchaser
+  - assigned_to_purchaser_on
+  - contact_person
+  - contact_email
+  - contact_mobile
+  - warehouse
+  - currency
+  - etd
+
+"tabOpportunity Item":
+  - name
+  - parent
+  - item_code
+  - item_name
+  - stock_availability_status
+  - stock_qty
+  - base_price
+  - supplier_list
+  - description
+  - qty
+  - uom
